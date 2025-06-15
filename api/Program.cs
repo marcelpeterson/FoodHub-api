@@ -212,47 +212,33 @@ builder.Services.AddSingleton<CloudflareClient>(sp =>
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DefaultPolicy", policy =>
-    {        // More permissive CORS policy for development
-        if (builder.Environment.IsDevelopment())
-        {
-            policy
-                .SetIsOriginAllowed(_ => true) // Allow any origin in development
-                .AllowAnyMethod()
-                .AllowAnyHeader()
-                .AllowCredentials()
-                .WithExposedHeaders("Access-Control-Allow-Origin")
-                .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
-        }
-        else
-        {
-            // Production CORS policy
-            policy.WithOrigins(
-                    builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ??
-                    new[] { "http://localhost:3000" }
-                )
-                .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .WithHeaders("Authorization", "Content-Type")
-                .AllowCredentials()
-                .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
-        }
+    {
+        policy
+            .SetIsOriginAllowed(_ => true) // Allow any origin in development
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials()
+            .WithExposedHeaders("Access-Control-Allow-Origin")
+            .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
     });
 });
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "API v1");
-        // Enable Swagger UI at both HTTP and HTTPS endpoints
-        c.RoutePrefix = "swagger";
-    });
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "API v1");
+    // Enable Swagger UI at both HTTP and HTTPS endpoints
+    c.RoutePrefix = "swagger";
+});
 
-app.UseHttpsRedirection();
+// Only use HTTPS redirection in development or when explicitly configured
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("ForceHttpsRedirection"))
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseMiddleware<RequestTimeoutMiddleware>();
 app.UseMiddleware<RequestValidationMiddleware>();
