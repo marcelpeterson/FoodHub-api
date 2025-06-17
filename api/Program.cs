@@ -71,6 +71,16 @@ builder.Services.AddHealthChecks()
 builder.Services.AddResponseCaching();
 builder.Services.AddMemoryCache();
 
+// Configure caching options
+builder.Services.Configure<api.Configuration.CachingOptions>(
+    builder.Configuration.GetSection(api.Configuration.CachingOptions.SectionName));
+
+// Add custom caching services
+builder.Services.AddSingleton<ICacheService, MemoryCacheService>();
+builder.Services.AddScoped<ICachedReviewService, CachedReviewService>();
+builder.Services.AddScoped<ICachedSellerService, CachedSellerService>();
+builder.Services.AddScoped<ICachedMenuService, CachedMenuService>();
+
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
@@ -203,8 +213,8 @@ builder.Services.AddSingleton<CloudflareClient>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     var accountId = config["R2:ACCOUNT_ID"] ?? throw new ArgumentNullException("R2:ACCOUNT_ID", "R2:ACCOUNT_ID cannot be null");
-    var accessKey = config["R2:ACCESS_KEY"] ?? throw new ArgumentNullException("R2:ACCESS_KEY cannot be null");
-    var accessSecret = config["R2:SECRET_KEY"] ?? throw new ArgumentNullException("R2:SECRET_KEY cannot be null");
+    var accessKey = config["R2:ACCESS_KEY"] ?? throw new ArgumentNullException("R2:ACCESS_KEY", "R2:ACCESS_KEY cannot be null");
+    var accessSecret = config["R2:SECRET_KEY"] ?? throw new ArgumentNullException("R2:SECRET_KEY", "R2:SECRET_KEY cannot be null");
     return new CloudflareClient(accountId, accessKey, accessSecret);
 });
 
@@ -213,13 +223,33 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("DefaultPolicy", policy =>
     {
-        policy
-            .SetIsOriginAllowed(_ => true) // Allow any origin in development
-            .AllowAnyMethod()
-            .AllowAnyHeader()
-            .AllowCredentials()
-            .WithExposedHeaders("Access-Control-Allow-Origin")
-            .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
+        if (builder.Environment.IsDevelopment())
+        {
+            // Allow any origin in development
+            policy
+                .SetIsOriginAllowed(_ => true)
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials()
+                .WithExposedHeaders("Access-Control-Allow-Origin")
+                .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
+        }
+        else
+        {
+            // Restrictive policy for production
+            policy
+                .WithOrigins(
+                    "https://foodhub.marcelpeterson.me",
+                    "https://www.foodhub.marcelpeterson.me",
+                    "http://localhost:3000", // For local testing
+                    "http://localhost:3001"  // For local testing
+                )
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials()
+                .WithExposedHeaders("Access-Control-Allow-Origin")
+                .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
+        }
     });
 });
 
@@ -243,8 +273,22 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("ForceHt
 app.UseMiddleware<RequestTimeoutMiddleware>();
 app.UseMiddleware<RequestValidationMiddleware>();
 app.UseMiddleware<ErrorHandlingMiddleware>();
+
+// Add response caching before authentication
+app.UseResponseCaching();
+
+// Add forwarded headers support for reverse proxy
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+                      Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto |
+                      Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost
+});
+
 app.UseIpRateLimiting();
 
+// Use custom CORS middleware for better reverse proxy compatibility
+app.UseMiddleware<CorsMiddleware>();
 app.UseCors("DefaultPolicy");
 
 app.UseAuthentication();
