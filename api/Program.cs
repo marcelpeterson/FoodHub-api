@@ -241,6 +241,7 @@ builder.Services.AddCors(options =>
                 .WithOrigins(
                     "https://foodhub.marcelpeterson.me",
                     "https://www.foodhub.marcelpeterson.me",
+                    "https://foodhub-project.vercel.app",
                     "http://localhost:3000", // For local testing
                     "http://localhost:3001"  // For local testing
                 )

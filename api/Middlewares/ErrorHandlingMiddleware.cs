@@ -30,6 +30,7 @@ namespace api.Middlewares
                     {
                         "https://foodhub.marcelpeterson.me",
                         "https://www.foodhub.marcelpeterson.me",
+                        "https://foodhub-project.vercel.app",
                         "http://localhost:3000",
                         "http://localhost:3001"
                     };
