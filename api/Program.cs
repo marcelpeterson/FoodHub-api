@@ -52,7 +52,7 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompress
 
 // Add Health Checks
 builder.Services.AddHealthChecks()
-    .AddCheck("API", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy())
+    .AddCheck("API", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: new[] { "live" })
     .AddCheck("Database", () =>
     {
         try
@@ -65,7 +65,7 @@ builder.Services.AddHealthChecks()
         {
             return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy("Database is unhealthy", ex);
         }
-    });
+    }, tags: new[] { "ready" });
 
 // Add Response Caching
 builder.Services.AddResponseCaching();
@@ -305,7 +305,7 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 });
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
-    Predicate = _ => false
+    Predicate = healthCheck => healthCheck.Tags.Contains("live")
 });
 
 // Map SignalR hub
